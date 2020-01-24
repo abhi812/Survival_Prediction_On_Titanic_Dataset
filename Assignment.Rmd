@@ -1,0 +1,903 @@
+---
+title: "Assignment4"
+author: "Abhishek kumar Gupta"
+date: "April 27, 2019"
+output:
+  pdf_document: 
+    toc: yes
+  html_document: 
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#All questions have been answered
+
+#1 Soft drinks delivefy times:
+##a)   What is the mathematical model used here in terms of the GLM? Write out the mathematics using Latex
+Ans: The model in genreal form used here is:
+
+$$ y = \beta_0  +\beta_1 x_1 + \beta_2x_2 $$
+or, in particular:
+
+$$  delivery Time = \beta_0 + \beta_1*cases + \beta_2 *distance $$
+
+###i. What is the Link in this case? 
+The link is th linear function given as:
+
+$$ link = \beta_1 * x_1 + \beta_2*x_2$$
+
+###ii. What is the linear predictor in this case?
+predictor variable: cases and distance
+predicted variable: delivery time
+
+###iii. What is the distribution of the error in this case? 
+Normal distribution: ~ dnorm( mu[i], tau )
+
+##b)  Plot the data as boxplots using ggplot (you will need to reformat the data as a data frame, data.frame()) 
+
+```{r}
+df = data.frame(list( n=25, time = c(16.68, 11.5, 12.03, 14.88, 13.75, 18.11, 8, 17.83, 79.24, 21.5,
+                     40.33, 21, 13.5, 19.75, 24, 29, 15.35, 19, 9.5, 35.1, 17.9, 52.32,
+                     18.75, 19.83, 10.75), distance = c(560, 220, 340, 80, 150, 330, 110,
+                    210, 1460, 605, 688, 215, 255, 462, 448, 776, 200, 132, 36, 770, 140,
+                    810, 450, 635, 150), cases = c( 7, 3, 3, 4, 6, 7, 2, 7, 30, 5, 16, 10,
+                                                    4, 6, 9, 10, 6, 7, 3, 17, 10, 26, 9, 8, 4) ))
+head(df)
+library(ggplot2)
+library(reshape2)
+data.m = melt(df,id.vars = 'n', measure.vars = c('time', 'cases', 'distance'))
+p <- ggplot(data.m) +
+  geom_boxplot(aes(x=n, y=value, color=variable))+labs(title ="Abhishek Kumar Gupta")
+p
+
+```
+
+##c)  Make density plots of all stochastic nodes using the ggmcmc package. You should run the model for 10000 iterations and throw away the first 1000 as a burn in.  Use three chains. 
+
+```{r}
+require(rjags)# Must have previously installed package rjags.
+
+fileNameRoot="Assignment4" # For output file names.
+
+Ntotal = 25  # Compute the total number of x,y pairs.
+  
+dataList =  list( time = c(16.68, 11.5, 12.03, 14.88, 13.75, 18.11, 8, 17.83, 79.24, 21.5, 40.33, 21, 13.5, 19.75, 24, 29, 15.35, 19, 9.5, 35.1, 17.9, 52.32, 18.75, 19.83, 10.75), distance = c(560, 220, 340, 80, 150, 330, 110, 210, 1460, 605, 688, 215, 255, 462, 448, 776, 200, 132, 36, 770, 140, 810, 450, 635, 150), cases = c( 7, 3, 3, 4, 6, 7, 2, 7, 30, 5, 16, 10, 4, 6, 9, 10, 6, 7, 3, 17, 10, 26, 9, 8, 4), Ntotal = Ntotal ) 
+
+
+
+#Define the model:
+modelString = "
+model{
+	for( i in 1 : Ntotal ) {
+		time[i] ~ dnorm(mu[i], tau)
+		mu[i] <- beta0 + beta1 * cases[i] + beta2*distance[i]
+	}
+	beta0 ~ dnorm(0.0, 1.0E-4)
+	beta1 ~ dnorm(0.0, 1.0E-4)
+	beta2 ~ dnorm(0.0, 1.0E-4)
+	tau ~ dgamma(0.01, 0.01)
+}
+
+" # close quote for modelString
+writeLines( modelString , con="TEMPmodel.txt" )
+initsList = list(beta0 = 0, beta1 = 0, beta2 =0, tau=1)
+
+# Run the chains:
+jagsModel = jags.model( file="TEMPmodel.txt" , data=dataList , inits=initsList , 
+                        n.chains=3 , n.adapt=1000 )
+update( jagsModel , n.iter=1000 )
+codaSamples = coda.samples( jagsModel , variable.names=c("beta0", "beta1", "beta2") ,
+                            n.iter=10000)
+save( codaSamples , file=paste0(fileNameRoot,"Mcmc.Rdata") )
+
+
+
+source("DBDA2E-utilities.R")
+library(ggmcmc)
+s = ggs(codaSamples)
+d=ggs_density(s)
+print(d)
+
+
+```
+
+##d) Give diagnostic plots of the MCMC for all primary stochastic nodes. 
+
+```{r}
+diagMCMC( codaObject=codaSamples , parName="beta0" )
+saveGraph( file=paste0(fileNameRoot,"m") , type="jpeg" )
+
+diagMCMC( codaObject=codaSamples , parName="beta1" )
+saveGraph( file=paste0(fileNameRoot,"m") , type="jpeg" )
+
+diagMCMC( codaObject=codaSamples , parName="beta2" )
+saveGraph( file=paste0(fileNameRoot,"m") , type="jpeg" )
+
+```
+
+##e)  Make posterior histograms of beta0, beta1 and beta2 using JK's code with a suitable rope around 0. 
+
+```{r}
+plotPost(codaSamples[,"beta0"], main = "beta0", xlab = bquote(beta[0]), ROPE = c(-0.05, 0.05))
+
+plotPost(codaSamples[,"beta1"], main = "beta1", xlab = bquote(beta[1]), ROPE = c(-0.05, 0.05))
+
+plotPost(codaSamples[,"beta2"], main = "beta2", xlab = bquote(beta[2]), ROPE = c(-0.05, 0.05))
+
+```
+
+
+##f)  Give a summary of all the posterior parameter estimates.   
+
+```{r}
+summary(codaSamples)
+```
+
+##g)  Give all Bayesian point estimates of parameters.
+```{r}
+su = summary(codaSamples)
+su$statistics
+
+```
+
+##h) Write down the formula (using Latex) for the mean service (or delivery) time as predicted by the model .
+
+The required equation is given as:
+
+$$ delivery Time = 2.35 + 1.61*cases + 0.01 *distance   $$
+
+##i) Using the above expression for the mean service time and summary information from the posterior find:
+
+###i. For each additional case stocked by the employee
+####a. how much delivery time will be required on average (point estimate)?
+Ans: 1.61 mins
+
+####b. how much delivery time will be required on average (interval estimate) and with what posterior probability?
+
+Ans: 1.26-1.96 with 95% probability
+
+###ii. For every increase of walking distance by 100 feet 
+####a. what delivery time will be required on average (point estimate)?
+ANs: 1.43 mins
+
+####b. what delivery time will be required on average ( interval estimate) and with what posterior probability?
+Ans: 0.7-2.17 with 95% probability
+
+##j) The engineer wished to find a typical or representative delivery route. He suggested the following code chunk.  Complete the code by supplying the missing function 
+
+typical.y <- beta0 + beta1*mean(cases[]) + beta2*mean(distance[])
+
+##k) Add the typical.y to the JAGS model and re-run this time including typical.y as a monitored node. Give a full interpretation of its posterior distribution
+
+```{r}
+require(rjags)# Must have previously installed package rjags.
+
+fileNameRoot="Assignment4" # For output file names.
+
+Ntotal = 25  # Compute the total number of x,y pairs.
+  
+dataList =  list( time = c(16.68, 11.5, 12.03, 14.88, 13.75, 18.11, 8, 17.83, 79.24, 21.5, 40.33, 21, 13.5, 19.75, 24, 29, 15.35, 19, 9.5, 35.1, 17.9, 52.32, 18.75, 19.83, 10.75), distance = c(560, 220, 340, 80, 150, 330, 110, 210, 1460, 605, 688, 215, 255, 462, 448, 776, 200, 132, 36, 770, 140, 810, 450, 635, 150), cases = c( 7, 3, 3, 4, 6, 7, 2, 7, 30, 5, 16, 10, 4, 6, 9, 10, 6, 7, 3, 17, 10, 26, 9, 8, 4), Ntotal = Ntotal ) 
+
+
+
+#Define the model:
+modelString = "
+model{
+	for( i in 1 : Ntotal ) {
+		time[i] ~ dnorm(mu[i], tau)
+		mu[i] <- beta0 + beta1 * cases[i] + beta2*distance[i]
+	}
+	beta0 ~ dnorm(0.0, 1.0E-4)
+	beta1 ~ dnorm(0.0, 1.0E-4)
+	beta2 ~ dnorm(0.0, 1.0E-4)
+	tau ~ dgamma(0.01, 0.01)
+typical.y <- beta0 + beta1*mean(cases[]) + beta2*mean(distance[])
+
+}
+
+" # close quote for modelString
+writeLines( modelString , con="TEMPmodel.txt" )
+initsList = list(beta0 = 0, beta1 = 0, beta2 =0, tau=1)
+
+# Run the chains:
+jagsModel = jags.model( file="TEMPmodel.txt" , data=dataList , inits=initsList , 
+                        n.chains=3 , n.adapt=1000 )
+update( jagsModel , n.iter=1000 )
+codaSamples = coda.samples( jagsModel , variable.names=c("beta0", "beta1", "beta2", "typical.y") ,
+                            n.iter=10000)
+save( codaSamples , file=paste0(fileNameRoot,"Mcmc.Rdata") )
+
+
+
+source("DBDA2E-utilities.R")
+library(ggmcmc)
+s = ggs(codaSamples)
+d=ggs_density(s)
+print(d)
+
+summary(codaSamples)
+
+```
+
+Form the above summary, we see typical.y has the mean vlaue of 22.38 with a range of (21.04 - 23.72) with 95% probability.
+
+
+##l. i. The following code is incomplete - give the rest of it as would be needed to calculate $R_B^2$ 
+
+ definition of sigma
+ s2<-1/tau
+ s <-sqrt(s2) 
+ # calculation of the sample variance
+ for (i in 1:n){ c.time[i]<-time[i]-mean(time[]) }
+ sy2 <- inprod( c.time[], c.time[] )/(n-1) 
+ # calculation of Bayesian version of adj R squared 
+ 
+ R2B <- 1-s2/sy2
+ 
+ 
+###ii) Include the code in the model and re-run after monitoring R2B - give a full interpretation of the R2B output. 
+ 
+```{r}
+
+require(rjags)# Must have previously installed package rjags.
+
+fileNameRoot="Assignment4" # For output file names.
+
+Ntotal = 25  # Compute the total number of x,y pairs.
+n = 25
+
+dataList =  list( time = c(16.68, 11.5, 12.03, 14.88, 13.75, 18.11, 8, 17.83, 79.24, 21.5, 40.33, 21, 13.5, 19.75, 24, 29, 15.35, 19, 9.5, 35.1, 17.9, 52.32, 18.75, 19.83, 10.75), distance = c(560, 220, 340, 80, 150, 330, 110, 210, 1460, 605, 688, 215, 255, 462, 448, 776, 200, 132, 36, 770, 140, 810, 450, 635, 150), cases = c( 7, 3, 3, 4, 6, 7, 2, 7, 30, 5, 16, 10, 4, 6, 9, 10, 6, 7, 3, 17, 10, 26, 9, 8, 4), Ntotal = Ntotal ) 
+
+#Define the model:
+modelString = "
+model{
+	for( i in 1 : Ntotal ) {
+		time[i] ~ dnorm(mu[i], tau)
+		mu[i] <- beta0 + beta1 * cases[i] + beta2*distance[i]
+	}
+	beta0 ~ dnorm(0.0, 1.0E-4)
+	beta1 ~ dnorm(0.0, 1.0E-4)
+	beta2 ~ dnorm(0.0, 1.0E-4)
+	tau ~ dgamma(0.01, 0.01)
+typical.y <- beta0 + beta1*mean(cases[]) + beta2*mean(distance[])
+
+ s2<-1/tau
+ s <-sqrt(s2) 
+ # calculation of the sample variance
+ for (i in 1:Ntotal){ c.time[i]<-time[i]-mean(time[]) }
+ sy2 <- inprod( c.time[], c.time[] )/(Ntotal-1) 
+ # calculation of Bayesian version of adj R squared 
+ 
+ R2B <- 1-s2/sy2
+
+}
+
+" # close quote for modelString
+writeLines( modelString , con="TEMPmodel.txt" )
+initsList = list(beta0 = 0, beta1 = 0, beta2 =0, tau=1)
+
+# Run the chains:
+jagsModel = jags.model( file="TEMPmodel.txt" , data=dataList , inits=initsList , 
+                        n.chains=3 , n.adapt=1000 )
+update( jagsModel , n.iter=1000 )
+codaSamples = coda.samples( jagsModel , variable.names=c("beta0", "beta1", "beta2", "R2B", "typical.y") ,
+                            n.iter=10000)
+save( codaSamples , file=paste0(fileNameRoot,"Mcmc.Rdata") )
+
+source("DBDA2E-utilities.R")
+library(ggmcmc)
+s = ggs(codaSamples)
+d=ggs_density(s)
+print(d)
+
+diagMCMC( codaObject=codaSamples , parName="R2B" )
+saveGraph( file=paste0(fileNameRoot,"m") , type="jpeg" )
+
+summary(codaSamples)
+
+```
+
+from the above summary, we get the mean R2B as 0.95 with a range (0.91, 0.97) with 95% probability.
+
+###iii. Include code that will calculate $p(\beta_2>0.01|D)$ where D is hte data.
+```{r}
+lm1 = lm(time~distance+cases, data = df)
+slm1 = step(lm1)
+
+```
+###iv. Find the point estimate for the above probability. 
+```{r}
+summary(slm1)
+slm1$anova
+
+```
+
+#2. Dobson (1983) analyses binary dose-response data published by Bliss (1935), in which the numbers of beetles killed after 5 hour exposure to carbon disulphide at N = 8 different concentrations are recorded.
+
+##a) Using ggplot make appropriate plots of the data.
+```{r}
+df = data.frame(list(x = c(1.6907, 1.7242, 1.7552, 1.7842, 1.8113, 1.8369, 1.8610, 1.8839), 
+                     n = c(59, 60, 62, 56, 63, 59, 62, 60), 
+                     y = c(6, 13, 18, 28, 52, 53, 61, 60)))
+head(df)
+library(ggplot2)
+ggplot(data=df, aes(x=x, y=n)) +geom_boxplot()+labs(title ="Abhishek Kumar Gupta")
+ggplot(data=df, aes(x=x, y=y)) +geom_bar(stat = "identity", fill = "tomato")+labs(title ="Abhishek Kumar Gupta")
+
+```
+
+##b) Complete/correct the code above and make a JAGS script to find posterior MCMC for betas and derived node p hat and y hat.
+
+```{r}
+
+require(rjags)# Must have previously installed package rjags.
+
+fileNameRoot="Assignment4" # For output file names.
+
+Ntotal = 8  # Compute the total number of x,y pairs.
+
+dataList = list(x = c(1.6907, 1.7242, 1.7552, 1.7842, 1.8113, 1.8369, 1.8610, 1.8839), 
+           n = c(59, 60, 62, 56, 63, 59, 62, 60), 
+           y = c(6, 13, 18, 28, 52, 53, 61, 60),Ntotal = Ntotal) 
+ 
+#Define the model:
+modelString = "
+model{
+for( i in 1 : Ntotal ) {
+
+y[i] ~ dbin(p[i], n[i])
+logit(p[i]) = beta0 + beta1*(x[i] - mean(x[]) )
+
+phat[i] <- y[i]/n[i]
+yhat[i] <- n[i]*p[i]
+
+}
+
+beta0 ~ dnorm(0.0, 1.0E-4)
+beta1 ~ dnorm(0.0, 1.0E-4)
+
+}
+
+" # close quote for modelString
+writeLines( modelString , con="TEMPmodel.txt" )
+initsList = list(beta0 = 0, beta1 = 0)
+
+# Run the chains:
+jagsModel = jags.model( file="TEMPmodel.txt" , data=dataList , inits=initsList , 
+                        n.chains=3 , n.adapt=500 )
+update( jagsModel , n.iter=500 )
+codaSamples = coda.samples( jagsModel , variable.names=c("beta0", "beta1", "yhat", "phat"), n.iter=5000)
+save( codaSamples , file=paste0(fileNameRoot,"Mcmc.Rdata") )
+summary(codaSamples)
+
+source("DBDA2E-utilities.R")
+library(ggmcmc)
+s = ggs(codaSamples)
+d=ggs_density(s)
+print(d)
+
+```
+
+##c. Give the MCMC diagnostics for 3 chains and 5000 iterations on each
+```{r}
+diagMCMC( codaObject=codaSamples , parName="beta0" )
+saveGraph( file=paste0(fileNameRoot,"m") , type="jpeg" )
+
+diagMCMC( codaObject=codaSamples , parName="beta1" )
+saveGraph( file=paste0(fileNameRoot,"m") , type="jpeg" )
+
+```
+
+##d.  Make a JAGS script that does not center the independent variable (Dose) 
+
+```{r}
+require(rjags)# Must have previously installed package rjags.
+
+fileNameRoot="Assignment4" # For output file names.
+
+Ntotal = 8  # Compute the total number of x,y pairs.
+
+dataList = list(x = c(1.6907, 1.7242, 1.7552, 1.7842, 1.8113, 1.8369, 1.8610, 1.8839), 
+           n = c(59, 60, 62, 56, 63, 59, 62, 60), 
+           y = c(6, 13, 18, 28, 52, 53, 61, 60),Ntotal = Ntotal) 
+ 
+#Define the model:
+modelString = "
+model{
+for( i in 1 : Ntotal ) {
+
+y[i] ~ dbin(p[i], n[i])
+logit(p[i]) = beta0 + beta1*(x[i])
+
+phat[i] <- y[i]/n[i]
+yhat[i] <- n[i]*p[i]
+
+}
+
+beta0 ~ dnorm(0.0, 1.0E-4)
+beta1 ~ dnorm(0.0, 1.0E-4)
+
+}
+
+" # close quote for modelString
+writeLines( modelString , con="TEMPmodel.txt" )
+initsList = list(beta0 = 0, beta1 = 0)
+
+# Run the chains:
+jagsModel = jags.model( file="TEMPmodel.txt" , data=dataList , inits=initsList , 
+                        n.chains=3 , n.adapt=500 )
+update( jagsModel , n.iter=500 )
+codaSamples = coda.samples( jagsModel , variable.names=c("beta0", "beta1", "yhat", "phat"), n.iter=5000)
+save( codaSamples , file=paste0(fileNameRoot,"Mcmc.Rdata") )
+summary(codaSamples)
+
+source("DBDA2E-utilities.R")
+library(ggmcmc)
+s = ggs(codaSamples)
+d=ggs_density(s)
+print(d)
+
+```
+
+##e) Run the code and show MCMC diagnostics - what do you conclude? 
+
+```{r}
+diagMCMC( codaObject=codaSamples , parName="beta0" )
+saveGraph( file=paste0(fileNameRoot,"m") , type="jpeg" )
+
+diagMCMC( codaObject=codaSamples , parName="beta1" )
+saveGraph( file=paste0(fileNameRoot,"m") , type="jpeg" )
+
+```
+
+From the above diagnostics, we see there is a huge auto co-relation when we do not centre the independent variable dose. Also, the density don't lie over each other. However, centering the independent variable dose gives better density and low auto-correlation as can be seen from the mcmc diagnostics.
+
+##f) Using the ggmcmc package make a pairs plot  
+###f) a.) of the posterior betas centred at x
+
+```{r}
+#Define the model:
+modelString = "
+model{
+for( i in 1 : Ntotal ) {
+
+y[i] ~ dbin(p[i], n[i])
+logit(p[i]) = beta0 + beta1*(x[i] - mean(x[]) )
+
+phat[i] <- y[i]/n[i]
+yhat[i] <- n[i]*p[i]
+
+}
+
+beta0 ~ dnorm(0.0, 1.0E-4)
+beta1 ~ dnorm(0.0, 1.0E-4)
+
+}
+
+" # close quote for modelString
+writeLines( modelString , con="TEMPmodel.txt" )
+initsList = list(beta0 = 0, beta1 = 0)
+
+# Run the chains:
+jagsModel = jags.model( file="TEMPmodel.txt" , data=dataList , inits=initsList , 
+                        n.chains=3 , n.adapt=500 )
+update( jagsModel , n.iter=500 )
+codaSamples = coda.samples( jagsModel , variable.names=c("beta0", "beta1"), n.iter=5000)
+save( codaSamples , file=paste0(fileNameRoot,"Mcmc.Rdata") )
+s = ggs(codaSamples)
+ggs_pairs(s, lower = list(continuous = "density"))
+
+```
+
+###f) b.) of the posterior betas not centred at x
+
+```{r}
+#Define the model:
+modelString = "
+model{
+for( i in 1 : Ntotal ) {
+
+y[i] ~ dbin(p[i], n[i])
+logit(p[i]) = beta0 + beta1*x[i] 
+
+phat[i] <- y[i]/n[i]
+yhat[i] <- n[i]*p[i]
+
+}
+
+beta0 ~ dnorm(0.0, 1.0E-4)
+beta1 ~ dnorm(0.0, 1.0E-4)
+
+}
+
+" # close quote for modelString
+writeLines( modelString , con="TEMPmodel.txt" )
+initsList = list(beta0 = 0, beta1 = 0)
+
+# Run the chains:
+jagsModel = jags.model( file="TEMPmodel.txt" , data=dataList , inits=initsList , 
+                        n.chains=3 , n.adapt=500 )
+update( jagsModel , n.iter=500 )
+codaSamples = coda.samples( jagsModel , variable.names=c("beta0", "beta1"), n.iter=5000)
+save( codaSamples , file=paste0(fileNameRoot,"Mcmc.Rdata") )
+s = ggs(codaSamples)
+ggs_pairs(s, lower = list(continuous = "density"))
+
+```
+
+###f) c. Compare the pictures and make some conclusions - what does centering accomplish?
+From the above pairs plot, we clearly see that centering gives well normally distributed betas whereas non centering results in betas with highly irregular distribution.
+
+###g) Say which are random:
+yhat[i], beta0, beta1, p[i]
+
+##h) In the model above you used a logit link - what other links could you use? 
+
+we could use probit, cloglog models
+
+###a. With centered data use a different link within your model 
+Here, I have used cloglog model.
+
+```{r}
+require(rjags)# Must have previously installed package rjags.
+
+fileNameRoot="Assignment4" # For output file names.
+
+Ntotal = 8  # Compute the total number of x,y pairs.
+
+dataList = list(x = c(1.6907, 1.7242, 1.7552, 1.7842, 1.8113, 1.8369, 1.8610, 1.8839), 
+           n = c(59, 60, 62, 56, 63, 59, 62, 60), 
+           y = c(6, 13, 18, 28, 52, 53, 61, 60),Ntotal = Ntotal) 
+ 
+#Define the model:
+modelString = "
+model{
+for( i in 1 : Ntotal ) {
+
+y[i] ~ dbin(p[i], n[i])
+cloglog(p[i]) = beta0 + beta1*(x[i] - mean(x[]) )
+
+phat[i] <- y[i]/n[i]
+yhat[i] <- n[i]*p[i]
+
+}
+
+beta0 ~ dnorm(0.0, 1.0E-4)
+beta1 ~ dnorm(0.0, 1.0E-4)
+
+}
+
+" # close quote for modelString
+writeLines( modelString , con="TEMPmodel.txt" )
+initsList = list(beta0 = 0, beta1 = 0)
+
+# Run the chains:
+jagsModel = jags.model( file="TEMPmodel.txt" , data=dataList , inits=initsList , 
+                        n.chains=3 , n.adapt=500 )
+update( jagsModel , n.iter=500 )
+codaSamples = coda.samples( jagsModel , variable.names=c("beta0", "beta1"), n.iter=5000)
+save( codaSamples , file=paste0(fileNameRoot,"Mcmc.Rdata") )
+summary(codaSamples)
+
+source("DBDA2E-utilities.R")
+library(ggmcmc)
+s = ggs(codaSamples)
+d=ggs_density(s)
+print(d)
+
+diagMCMC( codaObject=codaSamples , parName="beta0" )
+saveGraph( file=paste0(fileNameRoot,"m") , type="jpeg" )
+
+diagMCMC( codaObject=codaSamples , parName="beta1" )
+saveGraph( file=paste0(fileNameRoot,"m") , type="jpeg" )
+
+ggs_pairs(s, lower = list(continuous = "density"))
+
+```
+###b.  Any difference in the conclusions? 
+We see little variaitons in beta values. However, using centred independent variable, we see low auto correlation and density lies over each other.Pairs plot also show normally dstributed beta values.
+
+##i) Duplicate the pictures below in R by making your own script that will take the data and MCMC output (from model with centered x, logit link) and make the plots (these should be far more sophisticated and clear). The plots are p Vs Dose and yhat Vs Dose. 
+
+```{r}
+
+require(rjags)# Must have previously installed package rjags.
+
+fileNameRoot="Assignment4" # For output file names.
+
+Ntotal = 8  # Compute the total number of x,y pairs.
+
+dataList = list(x = c(1.6907, 1.7242, 1.7552, 1.7842, 1.8113, 1.8369, 1.8610, 1.8839), 
+           n = c(59, 60, 62, 56, 63, 59, 62, 60), 
+           y = c(6, 13, 18, 28, 52, 53, 61, 60),Ntotal = Ntotal) 
+ 
+#Define the model:
+modelString = "
+model{
+for( i in 1 : Ntotal ) {
+
+y[i] ~ dbin(p[i], n[i])
+logit(p[i]) = beta0 + beta1*(x[i] - mean(x[]) )
+
+phat[i] <- y[i]/n[i]
+yhat[i] <- n[i]*p[i]
+
+}
+
+beta0 ~ dnorm(0.0, 1.0E-4)
+beta1 ~ dnorm(0.0, 1.0E-4)
+
+}
+
+" # close quote for modelString
+writeLines( modelString , con="TEMPmodel.txt" )
+initsList = list(beta0 = 0, beta1 = 0)
+
+# Run the chains:
+jagsModel = jags.model( file="TEMPmodel.txt" , data=dataList , inits=initsList , 
+                        n.chains=3 , n.adapt=500 )
+update( jagsModel , n.iter=500 )
+codaSamples = coda.samples( jagsModel , variable.names=c("beta0", "beta1", "yhat", "phat"), n.iter=5000)
+save( codaSamples , file=paste0(fileNameRoot,"Mcmc.Rdata") )
+
+su = summary(codaSamples)
+stat = su$statistic
+yhat = stat[11:18, 1]
+quant = su$quantiles
+bci = quant[11:18, c(1,5)]
+
+df = data.frame(list(x = c(1.6907, 1.7242, 1.7552, 1.7842, 1.8113, 1.8369, 1.8610, 1.8839), 
+                     n = c(59, 60, 62, 56, 63, 59, 62, 60), 
+                     y = c(6, 13, 18, 28, 52, 53, 61, 60)))
+
+df2 = data.frame(cbind(yhat,bci,x = df$x))
+
+ggplot(data = df2, aes(x)) +geom_line(aes(y = yhat, colour = "red"))+
+  geom_line(aes(y = X2.5.,linetype = "dotted"))+
+  geom_line(aes(y = X97.5.,linetype = "dotted"))+labs(title ="Abhishek Kumar Gupta")
+
+
+phat = stat[3:10, 1]
+bci = quant[3:10, c(1,5)]
+df3 = data.frame(cbind(phat,bci,x = df$x))
+df3
+ggplot(data = df3, aes(x)) +geom_line(aes(y = phat, colour = "red"))+
+  geom_line(aes(y = X2.5.,linetype = "dotted"))+
+  geom_line(aes(y = X97.5.,linetype = "dotted"))+labs(title ="Abhishek Kumar Gupta")
+
+
+```
+
+#3. Now you will need to analyze the Titanic data set. I want you to perform a logistic regression where "Survived" is the response. Please note that this question is open for you to be creative and answer as best you can. Show me what you can do!! 
+
+##1. Describe the data - that is give a full description of the variables.  See https://www.youtube.com/watch?v=49fADBfcDD4&t=3401s for help. 
+
+The data consists of 11 variables/predictors/features and 890 rows/dta points for each variables. The description of each variable are:
+
+Survived: binary variably where 1 denotes that passenger survived, 0 indicates died
+Pclass: indiactes the class of the ticket with which the passenger was travelling which could be either 1 (for first class), 2 (for second class) and 3 (for 3rd class).
+Name: name of the passenger
+Sex: whether the passenger is male or female
+Age: age of the passenger
+sibsp: number of siblings and/or if travelling with spouse
+parch: indicates number of children and/or if travelling with paretns too
+Ticket: gives the ticket number of the passenger
+fare: fare of the passenger for the travel
+cabin: cabin assigned
+embarked: place where the journey started by the passenger
+
+
+##2.) plot the data in at least four useful ways using ggplot.  Make sure you describe the plots.
+
+
+```{r}
+titaniDf<- read.csv("titanic.csv")
+library(ggplot2)
+
+titaniDf$Survived  =as.factor(titaniDf$Survived)
+titaniDf$Pclass = as.factor(titaniDf$Pclass)
+titaniDf$Sex = as.factor(titaniDf$Sex)
+titaniDf$Embarked = as.factor(titaniDf$Embarked)
+ggplot(data = titaniDf, aes(Sex, fill = Survived))+geom_bar()+facet_wrap(~Pclass)+labs(title ="Abhishek Kumar Gupta")
+```
+
+The above bar graph shows the number of people survived for each class. Also, the bars have been color coded with sex m/f. From the plots, we see for class 1 almost all the female survived and proprtion of ale survival is high compared to rest of the class. Similar observaions can be seen for second class. However, we see maximum casualty in thrid class people especially males.
+
+```{r}
+ggplot(data = titaniDf, aes(x= Age, fill = Survived)) + 
+  geom_histogram()+facet_wrap(Sex~Pclass)+labs(title ="Abhishek Kumar Gupta")
+```
+
+The ablove graph shows the histogram for survival count for each sex and exch class of people. Again, we see similar observations as above with high female survival in first class and maximum deaths in third class male.
+
+```{r}
+ggplot(data = titaniDf, aes(y=Age,x=Survived)) +
+  geom_boxplot()+labs(title ="Abhishek Kumar Gupta")
+```
+
+The above box plot shows the suvival and age variance among the passengers. young poeple were given prefernce as seen by low age in survival boxlot median values.
+
+```{r}
+ggplot(data = titaniDf, aes(x=Age, fill = Survived)) +geom_density(alpha=0.4)+
+  facet_wrap(Sex~Pclass)+labs(title ="Abhishek Kumar Gupta")
+```
+
+Above is the density plot of age faceted with sex and class.
+
+##3. Make a JAGS script to analyze the data using whatever x variables you wish - make different linear predictors and use DIC to choose between the models. 
+
+Here, I have used the predictors age, sex and their interaction to model the survival.
+
+```{r}
+
+clglm = glm(Survived ~ Sex + Age + Sex:Age,family = "binomial", data = titaniDf)
+summary(clglm)
+mat1=model.matrix(clglm)
+mat2=model.frame(clglm)
+head(mat1)
+head(mat2)
+
+y = with(mat2, ifelse(Survived == "1", 1,0))
+n = length(y)
+
+dataList=list(y = y, x = mat1[, "Age"],Sexm = mat1[,"Sexmale"], Sexmx = mat1[,"Sexmale:Age"] , n = length(y))
+df = data.frame(dataList)
+head(df)
+length(mat1[,"Sexmale:Age"])
+
+library(rjags)
+
+#Define the model:
+modelString = "
+model{
+for(i in 1:n){
+y[i] ~ dbin(theta[i], 1)
+logit(theta[i]) <- beta[1] + beta[2]*x[i] + beta[3]*Sexm[i] + beta[4]*Sexmx[i]
+
+}
+for(j in 1:4){
+beta[j] ~ dnorm(0,1.0E-3)
+}
+}
+"
+writeLines( modelString , con="TEMPmodel.txt" )
+
+# close quote for modelStri
+#  initsList = list( theta=thetaInit )
+
+initsList = list(beta = c(0.6,0.02,-1.31,-0.04))
+# Run the chains:
+
+jagsModel = jags.model( file="TEMPmodel.txt" , data=dataList , inits=initsList , 
+                        n.chains=3 , n.adapt=500 )
+update( jagsModel , n.iter=500 )
+codaSamples = coda.samples( jagsModel , variable.names=c("beta"),
+                            n.iter=33350 )
+save( codaSamples , file=paste0("assignment4","Mcmc.Rdata") )
+
+
+
+library(ggmcmc)
+s = ggs(codaSamples)
+d=ggs_density(s)
+
+print(d)
+
+cr =  ggs_crosscorrelation(s)
+print(cr)
+
+summary(codaSamples)
+dic.samples(jagsModel, n.iter = 5000)
+
+```
+
+
+ANother model without interaction term:
+
+```{r}
+clglm = glm(Survived ~ Sex + Age,family = "binomial", data = titaniDf)
+summary(clglm)
+mat1=model.matrix(clglm)
+mat2=model.frame(clglm)
+head(mat1)
+head(mat2)
+
+y = with(mat2, ifelse(Survived == "1", 1,0))
+n = length(y)
+
+dataList=list(y = y, x = mat1[, "Age"],Sexm = mat1[,"Sexmale"],n = length(y))
+df = data.frame(dataList)
+head(df)
+
+library(rjags)
+
+#Define the model:
+modelString = "
+model{
+for(i in 1:n){
+y[i] ~ dbin(theta[i], 1)
+logit(theta[i]) <- beta[1] + beta[2]*x[i] + beta[3]*Sexm[i]
+
+}
+for(j in 1:3){
+beta[j] ~ dnorm(0,1.0E-3)
+}
+}
+"
+writeLines( modelString , con="TEMPmodel.txt" )
+initsList = list(beta = c(1.27,-0.005,-2.46))
+# Run the chains:
+jagsModel = jags.model( file="TEMPmodel.txt" , data=dataList , inits=initsList , 
+                        n.chains=3 , n.adapt=500 )
+
+update( jagsModel , n.iter=500 )
+codaSamples = coda.samples( jagsModel , variable.names=c("beta"),
+                            n.iter=33350 )
+save( codaSamples , file=paste0("assignment4","Mcmc.Rdata") )
+
+
+
+library(ggmcmc)
+s = ggs(codaSamples)
+d=ggs_density(s)
+
+print(d)
+
+cr =  ggs_crosscorrelation(s)
+print(cr)
+
+summary(codaSamples)
+dic.samples(jagsModel, n.iter = 5000)
+
+```
+
+
+From the above two models, we clearly see DIC values with interaction terms are lower compacre to without interaction. SInce lower DIC values corresponds to the better models. first model with interaction term is preferred.
+
+##4. Make conclusions about the probability of survival based on different combinations of independent variables.
+
+Based on the above model the probability of survival is given as :
+
+$$ logit(survival) = 0.59 + 0.02 *age - 1.32 *Sexmale -0.04*Sexmale*Age $$
+
+case1, if male=1
+
+$$ logit(survival) = 0.59 + 0.02 *age - 1.32 -0.04*Age $$
+or,
+$$ logit(survival) = -0.73 - 0.02*Age $$
+
+case2, if male=0, i.e, for female
+
+$$ logit(survival) = 0.59 + 0.02 *age $$
+
+Therefore, for females unit increase in age leads to 0.02 increase in logs of odds of survival. However for malesunit increase in age leads to decrease in logs of odds of survival by 0.02.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
